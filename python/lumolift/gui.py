@@ -271,7 +271,9 @@ class LumoLiftApp:
         ttk.Button(editor, text="Read owner", command=self._read_owner).grid(
             row=0, column=2, sticky="w"
         )
-        ttk.Label(editor, text="Owner password").grid(row=0, column=3, sticky="w", padx=(14, 0))
+        ttk.Label(editor, text="Legacy Lumo account password").grid(
+            row=0, column=3, sticky="w", padx=(14, 0)
+        )
         ttk.Entry(editor, textvariable=self.owner_password_var, show="•", width=22).grid(
             row=0, column=4, sticky="ew", padx=(8, 0)
         )
@@ -424,7 +426,7 @@ class LumoLiftApp:
             "Apply owner",
             (
                 "Apply this owner directly to the sensor and verify it with OWNER_GET?\n\n"
-                "The owner password is required by the recovered OWN command."
+                "OWN expects the original Lumo account password associated with this owner."
             ),
         ):
             return

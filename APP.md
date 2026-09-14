@@ -78,6 +78,8 @@ height, weight, gender, and age. Its probe button sends those command names with
 no argument, one at a time, after confirmation. The editable fields send direct
 sensor commands only. Owner application requires a password because the
 recovered command is `OWN(owner, password)` and is verified using `OWNER_GET`.
+The APK sources that password from the original Lumo account login; it is not a
+new device-specific password.
 
 ## Reusable API example
 

@@ -87,7 +87,7 @@ the bulk-control/data characteristics described in `PROTOCOL.md`.
 | --- | --- | --- | --- |
 | `OWNER_GET` | Host ↔ sensor | Read owner identifier. | APK; not used by replacement |
 | `NOT_OWNED` | Sensor → host | Ownership-state reply. | Event |
-| `OWN` | Host → sensor | Send account credentials to claim device. | Blocked |
+| `OWN` | Host → sensor | Send original Lumo account owner/password to claim device. | Explicit UI action; verified by `OWNER_GET` when used |
 | `OWN_OK` | Sensor → host | Ownership accepted. | Event |
 | `OWN_NOTOK` | Sensor → host | Ownership rejected. | Event |
 | `USER_HEIGHT_CM` | Host → sensor | Set user height during ownership setup. | Editable with confirmation; no-argument read probe available; no confirmed read-back |
