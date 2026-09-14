@@ -30,10 +30,10 @@ offline-first and does not use the discontinued Lumo account or cloud service.
 | Feedback delay | Read current delay; set one of 3, 5, 10, 15, 30, 45, 60, or 120 seconds with read-back | Read verified; write recovered from APK, pending live app verification |
 | Feedback session | Read total/remaining/good-posture time; start or stop with confirmation | Read verified; start/stop recovered from APK, not yet live-tested |
 | Vibration | Request the APK's `BUZZ` test | Recovered from APK, not yet physically confirmed |
-| Monitoring | Poll `GET_LIVE`, display JSON events, activity, angle, steps, and posture | Off by default; connection makes one one-shot live request, then polling starts only when selected |
-| Step gauges | Progress bars for daily `STEPS` and `STEPSH` (hour-boundary baseline) | UI implemented; updated from live events |
+| Monitoring | Poll `GET_LIVE`, display JSON events, activity, angle, steps, and posture | Off by default; Stop cancels polling and disables the sensor active-stream flag |
+| Step gauges | Progress bars for daily `STEPS` and `STEPSH` (hour-boundary baseline) | Locally persisted across same-day reconnects/app restarts |
 | Steps goal | Validate and Apply a local goal (minimum 100, default 10,000) used by both gauges | Local-only; no device BLE goal command exists in the APK |
-| Device profile | Read hardware/software IDs and owner; edit owner, height, weight, gender, and age | Direct device actions with confirmation; user-field read-back remains unconfirmed |
+| User profile | Read hardware/software IDs and owner; edit owner, height, weight, gender, and age | Direct device actions with confirmation; user-field read-back remains unconfirmed |
 | Local thresholds | Classify forward/good/back with adjustable display thresholds | UI-independent local calculation; does not modify sensor firmware |
 
 The APK's default display thresholds are forward below 85°, good from 85°
@@ -67,19 +67,17 @@ The UI contains no BLE framing or device policy:
 | `python/lumolift/client.py` | UI-independent discovery, lifecycle, configuration, read-back, and monitoring API |
 | `python/lumolift/monitoring.py` | Pure posture classification with replaceable local thresholds |
 | `python/lumolift/steps.py` | Pure step-goal validation and progress calculations |
+| `python/lumolift/counters.py` | Local persistent continuity for raw step counters across same-day restarts |
 | `python/lumolift/gui.py` | Minimal Tkinter presentation and background-event-loop bridge |
 | `python/lumolift/__main__.py` | `python -m lumolift` entry point |
 
 Another UI, command-line client, Android bridge, or automated test harness can
 reuse `LumoLiftClient` without importing Tkinter.
 
-The **Profile & investigation** tab shows the APK's recovered formats for
-height, weight, gender, and age. Its probe button sends those command names with
-no argument, one at a time, after confirmation. The editable fields send direct
-sensor commands only. Owner application requires a password because the
-recovered command is `OWN(owner, password)` and is verified using `OWNER_GET`.
-The APK sources that password from the original Lumo account login; it is not a
-new device-specific password.
+The **User profile** tab exposes direct sensor fields for owner, height, weight,
+gender, and age. Owner application sends the recovered `OWN(owner, "")` form at
+the user's request and verifies it using `OWNER_GET`. User-field commands have
+no confirmed read-back.
 
 ## Reusable API example
 

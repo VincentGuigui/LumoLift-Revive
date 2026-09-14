@@ -265,7 +265,24 @@ The reusable `PacketStreamDecoder` now buffers and splits each bulk payload at
 the `ZO` frame boundary, validates every frame independently, and emits all
 contained events. Connection performs one `GET_LIVE` request after its initial
 configuration refresh, but recurring monitoring remains off until explicitly
-started in the UI.
+started in the UI. Stopping monitoring both cancels client polling and changes
+communication flags from active/plugin (`0x06`) to idle/plugin (`0x02`) so the
+sensor is not left in its active telemetry mode.
+
+## Why STEPS and STEPSH can appear to reset on reconnect
+
+The sensor messages provide raw counters. In the original APK, `STEPS` and
+`STEPSH` are not displayed directly: the app reads locally persisted
+`deltaSteps`/`deltaStepsTillHr` values and calculates `raw counter + delta`.
+It recomputes those deltas from the app's activity database and resets them at
+day/hour boundaries. This preserves the dashboard total when a raw device
+counter restarts, rolls over, or reports a new session baseline.
+
+The replacement now persists a small local state record containing each last raw
+value and displayed total. On a same-day raw-counter decrease, it preserves the
+previous displayed total and adds the new raw baseline; on an app restart, it
+loads the saved totals. The record resets at the next local calendar day. This
+avoids the apparent reconnect reset without using any cloud service.
 
 ## Ownership and cloud boundary
 
@@ -322,9 +339,8 @@ Only these operations are currently allowlisted:
 | `ALERTLEN:<seconds>` | User-initiated only; value must be one of `3, 5, 10, 15, 30, 45, 60, 120` and must be reconciled with `AL_LEN_GET`. APK-supported; live write verification pending. |
 | `BSE_START` / `BSE_END` | User-initiated only and confirmation required; reconcile with `BSE_GET`. APK-supported; live start/stop verification pending. |
 | `BUZZ` | User-initiated test only. APK-supported; physical confirmation pending. |
-| No-argument `USER_*` probe | Explicit Profile-tab confirmation only; sends no argument and waits for a local reply. |
 | `USER_HEIGHT_CM`, `USER_WEIGHT_KG`, `USER_GENDER`, `USER_AGE` | Explicit Profile-tab confirmation only; values are range-validated and sent directly to the sensor. No confirmed read-back exists. |
-| `OWN` | Explicit Profile-tab confirmation only; requires owner and password and verifies with `OWNER_GET`. |
+| `OWN` | Explicit User-profile-tab confirmation only; sends the owner with an empty second argument and verifies with `OWNER_GET`. |
 
 Ownership, minting, RTC changes, tolerance setters, firmware operations, resets,
 and arbitrary console commands remain disallowed.

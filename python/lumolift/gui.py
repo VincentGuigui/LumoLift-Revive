@@ -11,6 +11,7 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 
 from .client import DeviceSnapshot, LumoEvent, LumoLiftClient, VALID_FEEDBACK_DELAYS
+from .counters import CounterStore
 from .monitoring import PostureThresholds, classify_posture
 from .steps import DEFAULT_STEPS_GOAL, progress_percent, validate_steps_goal
 
@@ -56,8 +57,10 @@ class LumoLiftApp:
         )
         self.thresholds = PostureThresholds()
         self.steps_goal = DEFAULT_STEPS_GOAL
-        self.steps_daily = 0
-        self.steps_hour_baseline = 0
+        self.counter_store = CounterStore()
+        saved_counters = self.counter_store.snapshot()
+        self.steps_daily = saved_counters.steps_displayed
+        self.steps_hour_baseline = saved_counters.stepsh_displayed
         self._busy = False
         self._build()
         self.root.after(100, self._poll_messages)
@@ -205,7 +208,7 @@ class LumoLiftApp:
         ttk.Label(steps, textvariable=self.stepsh_var).grid(row=5, column=0, sticky="e")
 
         ttk.Separator(steps).grid(row=6, column=0, sticky="ew", pady=10)
-        ttk.Label(steps, text="Steps goal (local gauge)").grid(row=7, column=0, sticky="w")
+        ttk.Label(steps, text="Gauges goal (visual only)").grid(row=7, column=0, sticky="w")
         self.steps_goal_var = tk.StringVar(value=str(self.steps_goal))
         goal_row = ttk.Frame(steps)
         goal_row.grid(row=8, column=0, sticky="w", pady=(4, 0))
@@ -213,27 +216,27 @@ class LumoLiftApp:
         ttk.Button(goal_row, text="Apply goal", command=self._apply_steps_goal).pack(
             side="left", padx=(6, 0)
         )
-        ttk.Label(
-            steps,
-            text="Goal is local only; no recovered BLE command writes it to the sensor.",
-            wraplength=280,
-        ).grid(row=9, column=0, sticky="w", pady=(8, 0))
 
         log_frame = ttk.LabelFrame(outer, text="Events", padding=8)
         log_frame.grid(row=4, column=0, sticky="nsew", pady=(10, 0))
         outer.rowconfigure(4, weight=1)
         self.log = tk.Text(log_frame, height=7, wrap="word", state="disabled")
         self.log.pack(fill="both", expand=True)
+        self._append_log(
+            "Restored local steps: "
+            f"STEPS={self.steps_daily}, STEPSH={self.steps_hour_baseline} "
+            f"({self.counter_store.path})"
+        )
 
         profile_tab = ttk.Frame(self.notebook, padding=14)
-        self.notebook.add(profile_tab, text="Profile & investigation")
+        self.notebook.add(profile_tab, text="User profile")
         self._build_profile_tab(profile_tab)
 
     def _build_profile_tab(self, parent: ttk.Frame) -> None:
         parent.columnconfigure(0, weight=1)
         ttk.Label(
             parent,
-            text="Direct device profile session. Read, inspect, and edit supported fields.",
+            text="Direct device profile session. Read and edit supported fields.",
             wraplength=850,
         ).grid(row=0, column=0, sticky="w")
 
@@ -254,12 +257,11 @@ class LumoLiftApp:
             row=0, column=2, rowspan=2, padx=(12, 0)
         )
 
-        editor = ttk.LabelFrame(parent, text="Editable device profile", padding=10)
+        editor = ttk.LabelFrame(parent, text="User profile", padding=10)
         editor.grid(row=2, column=0, sticky="ew", pady=(12, 0))
         editor.columnconfigure(1, weight=1)
         editor.columnconfigure(3, weight=1)
         self.owner_var = tk.StringVar()
-        self.owner_password_var = tk.StringVar()
         self.profile_height_var = tk.StringVar(value="175")
         self.profile_weight_var = tk.StringVar(value="70")
         self.profile_gender_var = tk.StringVar(value="m")
@@ -271,14 +273,8 @@ class LumoLiftApp:
         ttk.Button(editor, text="Read owner", command=self._read_owner).grid(
             row=0, column=2, sticky="w"
         )
-        ttk.Label(editor, text="Legacy Lumo account password").grid(
-            row=0, column=3, sticky="w", padx=(14, 0)
-        )
-        ttk.Entry(editor, textvariable=self.owner_password_var, show="•", width=22).grid(
-            row=0, column=4, sticky="ew", padx=(8, 0)
-        )
         ttk.Button(editor, text="Apply owner", command=self._apply_owner).grid(
-            row=0, column=5, sticky="w", padx=(8, 0)
+            row=0, column=3, sticky="w", padx=(8, 0)
         )
 
         ttk.Label(editor, text="Height (cm)").grid(row=1, column=0, sticky="w", pady=(10, 0))
@@ -304,49 +300,6 @@ class LumoLiftApp:
         ttk.Button(editor, text="Apply user profile", command=self._apply_user_profile).grid(
             row=2, column=2, columnspan=2, sticky="w", pady=(10, 0)
         )
-
-        profile = ttk.LabelFrame(parent, text="User-profile format investigation", padding=10)
-        profile.grid(row=3, column=0, sticky="nsew", pady=(12, 0))
-        parent.rowconfigure(3, weight=1)
-        ttk.Label(
-            profile,
-            text=(
-                "The APK sends these fields only during ownership setup. The table shows "
-                "the recovered write format; Probe sends each command with no argument and "
-                "waits for a local device reply."
-            ),
-            wraplength=850,
-        ).pack(anchor="w")
-
-        columns = ("field", "apk_format", "read_result")
-        self.profile_tree = ttk.Treeview(profile, columns=columns, show="headings", height=5)
-        self.profile_tree.heading("field", text="Command")
-        self.profile_tree.heading("apk_format", text="APK write format")
-        self.profile_tree.heading("read_result", text="No-argument read probe")
-        self.profile_tree.column("field", width=175, stretch=False)
-        self.profile_tree.column("apk_format", width=270, stretch=True)
-        self.profile_tree.column("read_result", width=330, stretch=True)
-        formats = {
-            "USER_HEIGHT_CM": "Decimal centimetres, e.g. 175.0",
-            "USER_WEIGHT_KG": "Decimal kilograms, e.g. 70.0",
-            "USER_GENDER": "Single lowercase m or f",
-            "USER_AGE": "Decimal integer years",
-        }
-        for command, value_format in formats.items():
-            self.profile_tree.insert(
-                "", "end", iid=command, values=(command, value_format, "Not probed")
-            )
-        self.profile_tree.pack(fill="both", expand=True, pady=(10, 0))
-
-        probe_row = ttk.Frame(profile)
-        probe_row.pack(fill="x", pady=(10, 0))
-        ttk.Button(
-            probe_row, text="Probe local reads", command=self._probe_profile_reads
-        ).pack(side="left")
-        ttk.Label(
-            probe_row,
-            text="Probe sends no arguments and does not write profile values.",
-        ).pack(side="left", padx=(10, 0))
 
     @staticmethod
     def _value(parent, row: int, column: int, title: str, variable: tk.StringVar) -> None:
@@ -421,24 +374,22 @@ class LumoLiftApp:
 
     def _apply_owner(self) -> None:
         owner = self.owner_var.get().strip()
-        password = self.owner_password_var.get()
         if not messagebox.askyesno(
             "Apply owner",
             (
-                "Apply this owner directly to the sensor and verify it with OWNER_GET?\n\n"
-                "OWN expects the original Lumo account password associated with this owner."
+                "Apply this owner directly to the sensor with an empty OWN password "
+                "argument and verify it with OWNER_GET?"
             ),
         ):
             return
         self._run(
-            self.client.set_owner(owner, password),
+            self.client.set_owner(owner),
             self._owner_applied,
             "Applying owner",
         )
 
     def _owner_applied(self, owner: str) -> None:
         self.owner_var.set(owner)
-        self.owner_password_var.set("")
         self.status_var.set("Connected")
         self._append_log(f"Owner applied and read back: {owner!r}")
 
@@ -466,32 +417,6 @@ class LumoLiftApp:
             lambda _result: self._setting_done("User profile values sent to sensor."),
             "Applying user profile",
         )
-
-    def _probe_profile_reads(self) -> None:
-        if not messagebox.askyesno(
-            "Probe profile reads",
-            (
-                "The APK documents these as ownership-time setters, not readers. "
-                "Send each command with no argument and wait for a local reply?\n\n"
-                "No profile write will be performed."
-            ),
-        ):
-            return
-        self._run(
-            self.client.probe_user_profile_reads(),
-            self._profile_probe_complete,
-            "Probing profile reads",
-        )
-
-    def _profile_probe_complete(self, probes) -> None:
-        for probe in probes:
-            if probe.response is not None:
-                result = str(probe.response)
-            else:
-                result = probe.error or "No response"
-            self.profile_tree.set(probe.command, "read_result", result)
-            self._append_log(f"{probe.command} read probe: {result}")
-        self.status_var.set("Connected")
 
     def _refresh(self) -> None:
         self._run(self.client.refresh(), self._refreshed, "Refreshing")
@@ -580,9 +505,13 @@ class LumoLiftApp:
     def _stop_monitoring(self) -> None:
         self._run(
             self.client.stop_monitoring(),
-            lambda _result: self._setting_done("Live monitoring stopped."),
+            lambda _result: self._monitoring_stopped(),
             "Stopping monitoring",
         )
+
+    def _monitoring_stopped(self) -> None:
+        self.status_var.set("Connected · monitoring off")
+        self._append_log("Live polling stopped; active device stream disabled.")
 
     def _apply_thresholds(self) -> None:
         try:
@@ -626,14 +555,25 @@ class LumoLiftApp:
             self.posture_var.set(classify_posture(activity, angle, self.thresholds))
         elif event.kind == "STEPS":
             try:
-                self.steps_daily = int(values.get("val", 0))
+                raw_steps = int(values.get("val", 0))
+                counters = self.counter_store.update_steps(raw_steps)
+                self.steps_daily = counters.steps_displayed
                 self._update_steps_gauges()
+                self._append_log(
+                    f"STEPS continuity: raw={raw_steps}, displayed={self.steps_daily}"
+                )
             except (TypeError, ValueError):
                 self._append_log(f"Invalid STEPS value: {values.get('val')!r}")
         elif event.kind == "STEPSH":
             try:
-                self.steps_hour_baseline = int(values.get("val", 0))
+                raw_stepsh = int(values.get("val", 0))
+                counters = self.counter_store.update_stepsh(raw_stepsh)
+                self.steps_hour_baseline = counters.stepsh_displayed
                 self._update_steps_gauges()
+                self._append_log(
+                    "STEPSH continuity: "
+                    f"raw={raw_stepsh}, displayed={self.steps_hour_baseline}"
+                )
             except (TypeError, ValueError):
                 self._append_log(f"Invalid STEPSH value: {values.get('val')!r}")
         self._append_log(f"{event.kind}: {values}")

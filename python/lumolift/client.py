@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import asynccontextmanager
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -28,12 +29,6 @@ from .protocol import (
 LUMO_PRIMARY_SERVICE = "af120101-31d4-48e8-a1f8-5c09c020ae42"
 MANUFACTURER_NAME_UUID = "00002a29-0000-1000-8000-00805f9b34fb"
 VALID_FEEDBACK_DELAYS = (3, 5, 10, 15, 30, 45, 60, 120)
-USER_PROFILE_COMMANDS = (
-    "USER_HEIGHT_CM",
-    "USER_WEIGHT_KG",
-    "USER_GENDER",
-    "USER_AGE",
-)
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,15 +70,6 @@ class LumoEvent:
     raw_hex: str
 
 
-@dataclass(frozen=True, slots=True)
-class UserProfileProbe:
-    """Result of a no-argument local profile query attempt."""
-
-    command: str
-    response: dict[str, Any] | None
-    error: str | None
-
-
 class LumoLiftClient:
     """Reusable device API with no dependency on a particular user interface."""
 
@@ -94,6 +80,9 @@ class LumoLiftClient:
         self._original_communication: int | None = None
         self._operation_lock = asyncio.Lock()
         self._monitor_task: asyncio.Task | None = None
+        self._monitoring_enabled = False
+        self._session_active = False
+        self._active_session_depth = 0
         self._event_handlers: list[Callable[[LumoEvent], None]] = []
         self._packet_stream = PacketStreamDecoder()
 
@@ -152,12 +141,6 @@ class LumoLiftClient:
             self._device = device
             self._packet_stream.clear()
             self._original_communication = await self.get_communication_flags()
-            await self._set_communication_flags(0x06)
-            active_flags = await self.get_communication_flags()
-            if active_flags != 0x06:
-                raise RuntimeError(
-                    f"Unable to activate Lumo session; flags are 0x{active_flags:02x}"
-                )
             snapshot = await self.refresh()
             # One one-shot update populates live counters without enabling the
             # recurring monitoring task.
@@ -179,6 +162,7 @@ class LumoLiftClient:
             self._transport = None
             self._device = None
             self._original_communication = None
+            self._session_active = False
             self._packet_stream.clear()
             raise
 
@@ -202,6 +186,7 @@ class LumoLiftClient:
             self._transport = None
             self._device = None
             self._original_communication = None
+            self._session_active = False
             self._packet_stream.clear()
 
     def _require_transport(self) -> LumoBulkTransport:
@@ -239,21 +224,23 @@ class LumoLiftClient:
         return payload
 
     async def _query_json(self, command: str, timeout: float = 10.0) -> dict:
-        async with self._operation_lock:
-            exchange = await self._require_transport().execute(
-                encode_json_command(command),
-                timeout=timeout,
-                response_filter=self._json_filter(command),
-            )
+        async with self._active_session():
+            async with self._operation_lock:
+                exchange = await self._require_transport().execute(
+                    encode_json_command(command),
+                    timeout=timeout,
+                    response_filter=self._json_filter(command),
+                )
         _, payload = decode_packet(exchange.response_packet)
         return decode_json_payload(payload)
 
     async def _set_json(self, command: str, *arguments: str) -> None:
-        async with self._operation_lock:
-            await self._require_transport().send_oneway(
-                encode_json_command(command, *arguments)
-            )
-            await asyncio.sleep(0.35)
+        async with self._active_session():
+            async with self._operation_lock:
+                await self._require_transport().send_oneway(
+                    encode_json_command(command, *arguments)
+                )
+                await asyncio.sleep(0.35)
 
     async def _set_communication_flags(self, flags: int) -> None:
         async with self._operation_lock:
@@ -261,6 +248,28 @@ class LumoLiftClient:
                 encode_packet(2, bytes((6, flags)))
             )
             await asyncio.sleep(0.35)
+        self._session_active = bool(flags & 0x04)
+
+    @asynccontextmanager
+    async def _active_session(self):
+        """Enable active communication for an operation, then idle afterward."""
+
+        activate = self._active_session_depth == 0 and not self._session_active
+        if activate:
+            await self._set_communication_flags(0x06)
+        self._active_session_depth += 1
+        try:
+            yield
+        finally:
+            self._active_session_depth -= 1
+            if (
+                activate
+                and self._active_session_depth == 0
+                and not self._monitoring_enabled
+                and self.is_connected
+            ):
+                # Keep plugin available, but tell the sensor that the app is idle.
+                await self._set_communication_flags(0x02)
 
     async def get_communication_flags(self) -> int:
         payload = await self._query_property(6)
@@ -315,13 +324,11 @@ class LumoLiftClient:
         await self._set_json("USER_GENDER", gender)
         await self._set_json("USER_AGE", str(age))
 
-    async def set_owner(self, owner: str, password: str) -> str:
-        """Set owner using the APK's direct sensor OWN command and read it back."""
+    async def set_owner(self, owner: str, password: str = "") -> str:
+        """Set owner using the direct sensor OWN command and read it back."""
 
         if not owner:
             raise ValueError("Owner is required")
-        if not password:
-            raise ValueError("Owner password is required")
         await self._set_json("OWN", owner, password)
         actual_owner = await self.get_owner()
         if actual_owner != owner:
@@ -330,24 +337,6 @@ class LumoLiftClient:
             )
         return actual_owner
 
-    async def probe_user_profile_reads(self, timeout: float = 5.0) -> list[UserProfileProbe]:
-        """Attempt documented no-argument profile queries without cloud access.
-
-        The APK only proves these commands as setters during ownership setup.
-        This method sends no arguments, never invokes cloud code, and reports
-        replies/timeouts rather than treating a missing reply as a writable path.
-        """
-
-        results = []
-        for command in USER_PROFILE_COMMANDS:
-            try:
-                response = await self._query_json(command, timeout=timeout)
-                results.append(UserProfileProbe(command, response, None))
-            except TimeoutError:
-                results.append(UserProfileProbe(command, None, "No response"))
-            except Exception as error:
-                results.append(UserProfileProbe(command, None, str(error)))
-        return results
 
     async def get_manufacturer(self) -> str:
         client = self._client
@@ -398,12 +387,13 @@ class LumoLiftClient:
     async def refresh(self) -> DeviceSnapshot:
         if self._device is None:
             raise RuntimeError("Lumo device is not connected")
-        version = await self.get_version()
-        battery = await self.get_battery()
-        coaching = await self.get_coaching_enabled()
-        delay = await self.get_feedback_delay()
-        feedback = await self.get_feedback_session()
-        manufacturer = await self.get_manufacturer()
+        async with self._active_session():
+            version = await self.get_version()
+            battery = await self.get_battery()
+            coaching = await self.get_coaching_enabled()
+            delay = await self.get_feedback_delay()
+            feedback = await self.get_feedback_session()
+            manufacturer = await self.get_manufacturer()
         return DeviceSnapshot(
             name=self._device.name,
             manufacturer=manufacturer,
@@ -415,8 +405,9 @@ class LumoLiftClient:
         )
 
     async def request_live_data(self) -> None:
-        async with self._operation_lock:
-            await self._require_transport().send_oneway(encode_json_command("GET_LIVE"))
+        async with self._active_session():
+            async with self._operation_lock:
+                await self._require_transport().send_oneway(encode_json_command("GET_LIVE"))
 
     async def start_monitoring(self, interval: float = 5.0) -> None:
         self._require_transport()
@@ -424,6 +415,8 @@ class LumoLiftClient:
             raise ValueError("Monitoring interval must be at least one second")
         if self._monitor_task and not self._monitor_task.done():
             return
+        self._monitoring_enabled = True
+        await self._set_communication_flags(0x06)
 
         async def monitor() -> None:
             while self.is_connected:
@@ -438,6 +431,7 @@ class LumoLiftClient:
         self._monitor_task = asyncio.create_task(monitor())
 
     async def stop_monitoring(self) -> None:
+        self._monitoring_enabled = False
         task = self._monitor_task
         self._monitor_task = None
         if task is not None:
@@ -446,6 +440,8 @@ class LumoLiftClient:
                 await task
             except asyncio.CancelledError:
                 pass
+        if self.is_connected and self._session_active:
+            await self._set_communication_flags(0x02)
 
     def _handle_packet(self, packet: bytes) -> None:
         try:

@@ -87,13 +87,13 @@ the bulk-control/data characteristics described in `PROTOCOL.md`.
 | --- | --- | --- | --- |
 | `OWNER_GET` | Host ↔ sensor | Read owner identifier. | APK; not used by replacement |
 | `NOT_OWNED` | Sensor → host | Ownership-state reply. | Event |
-| `OWN` | Host → sensor | Send original Lumo account owner/password to claim device. | Explicit UI action; verified by `OWNER_GET` when used |
+| `OWN` | Host → sensor | Send owner and second credential argument to claim device. | Explicit UI action; current UI sends an empty second argument and verifies with `OWNER_GET` |
 | `OWN_OK` | Sensor → host | Ownership accepted. | Event |
 | `OWN_NOTOK` | Sensor → host | Ownership rejected. | Event |
-| `USER_HEIGHT_CM` | Host → sensor | Set user height during ownership setup. | Editable with confirmation; no-argument read probe available; no confirmed read-back |
-| `USER_WEIGHT_KG` | Host → sensor | Set user weight during ownership setup. | Editable with confirmation; no-argument read probe available; no confirmed read-back |
-| `USER_GENDER` | Host → sensor | Set user gender during ownership setup. | Editable with confirmation; no-argument read probe available; no confirmed read-back |
-| `USER_AGE` | Host → sensor | Set user age during ownership setup. | Editable with confirmation; no-argument read probe available; no confirmed read-back |
+| `USER_HEIGHT_CM` | Host → sensor | Set user height during ownership setup. | Editable with confirmation; no confirmed read-back |
+| `USER_WEIGHT_KG` | Host → sensor | Set user weight during ownership setup. | Editable with confirmation; no confirmed read-back |
+| `USER_GENDER` | Host → sensor | Set user gender during ownership setup. | Editable with confirmation; no confirmed read-back |
+| `USER_AGE` | Host → sensor | Set user age during ownership setup. | Editable with confirmation; no confirmed read-back |
 
 ## Direct application-packet operations
 

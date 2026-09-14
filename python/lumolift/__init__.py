@@ -21,6 +21,7 @@ from .steps import (
     progress_percent,
     validate_steps_goal,
 )
+from .counters import CounterState, CounterStore
 
 __all__ = [
     "BulkControl",
@@ -40,4 +41,6 @@ __all__ = [
     "MIN_STEPS_GOAL",
     "progress_percent",
     "validate_steps_goal",
+    "CounterState",
+    "CounterStore",
 ]
