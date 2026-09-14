@@ -53,6 +53,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -122,7 +123,7 @@ private fun DeviceCard(state: MainUiState) = SurfaceCard("Device") {
     val info = state.info
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         Metric("Firmware", if (info.revision == 0L) "—" else "${info.firmware} r${info.revision}")
-        Metric("Battery", if (state.connected) "${info.batteryPercent}% · %.2f V".format(info.voltage) else "—")
+        Metric("Battery", if (state.connected) formatBatteryLabel(info.batteryPercent, info.voltage) else "—")
         Metric("Temperature", if (state.connected) "%.1f °C".format(info.temperature) else "—")
     }
 }
@@ -288,3 +289,6 @@ private fun posture(activity: String, angle: Double?): String = when {
     angle > 95 -> "Back"
     else -> "Good"
 }
+
+internal fun formatBatteryLabel(percent: Int, voltage: Double): String =
+    "$percent% · ${String.format(Locale.US, "%.2f", voltage)} V"

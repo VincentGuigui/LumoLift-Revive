@@ -17,6 +17,7 @@ import kotlinx.coroutines.launch
 import org.json.JSONObject
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.Locale
 import kotlin.math.roundToInt
 
 class AndroidLumoRepository(private val context: Context) : LumoRepository {
@@ -149,8 +150,8 @@ class AndroidLumoRepository(private val context: Context) : LumoRepository {
     override suspend fun setProfile(heightCm: Double, weightKg: Double, gender: String, age: Int) = withActive {
         require(heightCm in 1.0..300.0 && weightKg in 1.0..500.0)
         require(gender in listOf("m", "f") && age in 0..130)
-        sendJson("USER_HEIGHT_CM", "%g".format(heightCm))
-        sendJson("USER_WEIGHT_KG", "%g".format(weightKg))
+        sendJson("USER_HEIGHT_CM", String.format(Locale.US, "%g", heightCm))
+        sendJson("USER_WEIGHT_KG", String.format(Locale.US, "%g", weightKg))
         sendJson("USER_GENDER", gender)
         sendJson("USER_AGE", age.toString())
     }

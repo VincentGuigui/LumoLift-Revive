@@ -9,7 +9,8 @@ account-service dependency.
 - Debug APK builds successfully.
 - JVM protocol tests pass.
 - Android lint passes with no errors.
-- Physical-phone BLE behavior remains to be verified.
+- v1.1 was installed and physically validated through initial BLE refresh and
+  live posture data on a Samsung phone.
 - Android Studio is optional; the checked-in Gradle wrapper is sufficient when
   JDK 17 and Android SDK 37 are installed.
 
