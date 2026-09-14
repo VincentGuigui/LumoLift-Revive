@@ -146,8 +146,8 @@ class LumoLiftApp:
 
         content = ttk.Frame(outer)
         content.grid(row=3, column=0, sticky="ew", pady=(10, 0))
-        content.columnconfigure(0, weight=1)
-        content.columnconfigure(1, weight=2)
+        content.columnconfigure(0, weight=1, uniform="main-panels")
+        content.columnconfigure(1, weight=1, uniform="main-panels")
 
         monitor = ttk.LabelFrame(content, text="Monitoring", padding=10)
         monitor.grid(row=0, column=0, sticky="nsew", padx=(0, 8))

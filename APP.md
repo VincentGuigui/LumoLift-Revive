@@ -47,6 +47,10 @@ the cloud goals database; no `sendCommand`/BLE packet applies a steps goal to
 the sensor. The Python app therefore labels its Apply action “local gauge” and
 does not claim to write the goal to the device.
 
+The APK also contains a cloud `LKGoal` model with defaults of 10,000 steps and
+14,400 good-posture seconds (four hours). That is a cloud/app objective model,
+not evidence of an additional sensor configuration endpoint.
+
 Target-posture calibration remains a physical-device operation. The APK handles
 `CALIB_START` as an incoming event and does not establish it as a safe outgoing
 command.

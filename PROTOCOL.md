@@ -227,6 +227,33 @@ The Python application consequently exposes two live gauges and a local goal
 target, but deliberately does not send a fabricated “set steps goal” command to
 the device.
 
+### Goal-model follow-up
+
+A broader APK pass found `LKGoal`, a cloud/database model with defaults of
+`steps = 10000` and `posture = 14400` seconds (four hours). `LKGoalsManager`
+can store and synchronize those records with the discontinued cloud service.
+However, the visible `StepsActivity` does not create or upload an `LKGoal`; it
+only saves `STEP_GOAL` in Android preferences. No caller in the app source was
+found that sends either goal to the sensor through BLE.
+
+The protocol boundary is therefore unchanged: steps and posture goals are
+app/cloud concepts, not recovered device configuration.
+
+## Feature inventory from the APK
+
+| Feature | Evidence | Replacement position |
+| --- | --- | --- |
+| Daily steps, hour-boundary steps, distance, calories, and good-posture time | `STEPS`, `STEPSH`, `CALS`, `TGOOD` live messages | Monitor and display; no arbitrary counter writes |
+| Posture feedback session | `BSE_GET`, `BSE_START`, `BSE_END`, `BSE_SET` | Read session state; user-confirmed start/stop only |
+| Coaching vibration | `CHTOG` | Read/write verified with read-back and reconnect test |
+| Alert delay | `AL_LEN_GET`, `ALERTLEN`, `AL_LEN` | Read current delay; constrained user-settable values |
+| Test vibration | `BUZZ`, `BUZZSTR` | Expose only as a user-requested physical test |
+| Target-posture calibration | Incoming `CALIB_START`; onboarding instructions use physical interaction | No outgoing calibration command exposed |
+| Angle/tolerance values | `REC` carries angle; `SBB_GET`/`SBF_GET` time out on this firmware | Local display classifier only; no guessed setters |
+| User height/weight/gender/age | Sent only during ownership onboarding | Not exposed; no safe local read-back or offline ownership path |
+| Firmware/update/reset/ownership/minting | APK contains flows | Explicitly excluded from the replacement |
+| Steps/posture goals and units | Android preferences and cloud/database paths | Local UI preferences only, not sensor configuration |
+
 ## Multi-frame event handling
 
 **Observed during live use:** a bulk-transfer response can contain multiple
