@@ -41,3 +41,11 @@ Thumbs.db
 *.swo
 .idea/
 .vscode/
+
+# Android build output and local toolchain
+android/.toolchain/
+android/.gradle/
+android/local.properties
+android/**/build/
+*.apk
+*.aab

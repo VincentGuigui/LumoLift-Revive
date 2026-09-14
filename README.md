@@ -25,6 +25,7 @@ operating model have been verified.
 | [COMMANDS.md](COMMANDS.md) | Complete recovered BLE command, event, packet-type, and property inventory. |
 | [BLE_PROBE.md](BLE_PROBE.md) | How the read-only Windows BLE probe works, how to run it, and its observed output. |
 | [APP.md](APP.md) | Python application setup, features, evidence status, architecture, and reusable API. |
+| [ANDROID.md](ANDROID.md) | Native Android app features, architecture, build, installation, and verification status. |
 | [AGENTS.md](AGENTS.md) | Short repository instructions and pointers for coding agents. |
 | [CODEX.md](CODEX.md) | Redirect to the shared agent instructions. |
 
@@ -55,6 +56,8 @@ project documentation set.
   are reusable without the UI; see `APP.md`.
 - The app displays daily `STEPS` and `STEPSH` gauges. The steps goal is a local
   gauge target only: APK analysis found no device-side goal command.
+- A native Kotlin/Compose Material 3 Android app now builds and passes lint and
+  protocol tests. Physical-phone BLE validation is still pending.
 - Existing open-source posture-sensor projects may provide investigation
   methods or interface architecture, but do not demonstrate compatibility with
   this sensor.
@@ -96,7 +99,7 @@ hardware tests confirm them.
 | G2 — Protocol foothold | **Complete:** bulk transport and the read-only version-property request are hardware-verified. |
 | G3 — Independent control | **Complete:** coaching was changed, read back, persisted across reconnect, and restored. |
 | G4 — Operating model | Offline alerts, persistence, and calibration lifecycle are tested. |
-| G5 — Android MVP | Required functions work on the target phone, including permission and lifecycle cases. |
+| G5 — Android MVP | **Build complete; physical validation pending:** debug APK, unit tests, and lint pass. |
 
 ## Safety and scope
 
@@ -120,6 +123,7 @@ PROTOCOL.md     Authoritative device protocol findings and unknowns
 COMMANDS.md     Recovered BLE command and property inventory
 BLE_PROBE.md    Read-only BLE probe usage and observed service inventory
 APP.md          Python app setup, capabilities, and reusable architecture
+ANDROID.md      Native Android app build, installation, and architecture
 AGENTS.md       Agent entry point and safety instructions
 CODEX.md        Redirect to AGENTS.md
 python/         Windows diagnostic client and packet codecs
