@@ -3,6 +3,7 @@ import struct
 
 from lumolift.protocol import (
     BulkControl,
+    PacketStreamDecoder,
     ProtocolError,
     chunk_bulk_payload,
     crc16_ccitt,
@@ -44,6 +45,17 @@ class PacketTests(unittest.TestCase):
     def test_oversized_payload_is_rejected(self):
         with self.assertRaisesRegex(ProtocolError, "exceeds 500"):
             encode_packet(1, bytes(501))
+
+    def test_stream_decoder_splits_concatenated_packets(self):
+        first = encode_packet(1, b"a")
+        second = encode_packet(2, b"bc")
+        decoder = PacketStreamDecoder()
+        self.assertEqual(decoder.feed(first[:4]), [])
+        frames = decoder.feed(first[4:] + second)
+        self.assertEqual(
+            [(packet_type, payload) for packet_type, payload, _ in frames],
+            [(1, b"a"), (2, b"bc")],
+        )
 
 
 class BulkControlTests(unittest.TestCase):

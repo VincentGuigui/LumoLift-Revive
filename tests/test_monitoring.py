@@ -1,6 +1,7 @@
 import unittest
 
 from lumolift.monitoring import PostureThresholds, classify_posture
+from lumolift.steps import progress_percent, validate_steps_goal
 
 
 class PostureClassificationTests(unittest.TestCase):
@@ -22,3 +23,15 @@ class PostureClassificationTests(unittest.TestCase):
     def test_invalid_threshold_order(self):
         with self.assertRaisesRegex(ValueError, "forward threshold"):
             PostureThresholds(95, 85)
+
+
+class StepGoalTests(unittest.TestCase):
+    def test_goal_minimum(self):
+        self.assertEqual(validate_steps_goal(100), 100)
+        with self.assertRaisesRegex(ValueError, "at least 100"):
+            validate_steps_goal(99)
+
+    def test_progress_is_clamped(self):
+        self.assertEqual(progress_percent(5000, 10000), 50)
+        self.assertEqual(progress_percent(12000, 10000), 100)
+        self.assertEqual(progress_percent(-1, 10000), 0)

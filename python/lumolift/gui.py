@@ -12,6 +12,7 @@ from tkinter import messagebox, ttk
 
 from .client import DeviceSnapshot, LumoEvent, LumoLiftClient, VALID_FEEDBACK_DELAYS
 from .monitoring import PostureThresholds, classify_posture
+from .steps import DEFAULT_STEPS_GOAL, progress_percent, validate_steps_goal
 
 
 class AsyncRunner:
@@ -46,7 +47,7 @@ class LumoLiftApp:
     def __init__(self, root: tk.Tk):
         self.root = root
         self.root.title("Lumo Lift")
-        self.root.minsize(660, 590)
+        self.root.minsize(980, 650)
         self.messages: queue.Queue = queue.Queue()
         self.runner = AsyncRunner(self.messages)
         self.client = LumoLiftClient()
@@ -54,6 +55,9 @@ class LumoLiftApp:
             lambda event: self.messages.put(("device_event", None, event))
         )
         self.thresholds = PostureThresholds()
+        self.steps_goal = DEFAULT_STEPS_GOAL
+        self.steps_daily = 0
+        self.steps_hour_baseline = 0
         self._busy = False
         self._build()
         self.root.after(100, self._poll_messages)
@@ -140,21 +144,26 @@ class LumoLiftApp:
             text="Target posture: set with the physical sensor button (no verified software command).",
         ).grid(row=3, column=1, columnspan=2, sticky="w", padx=(8, 0), pady=(8, 0))
 
-        monitor = ttk.LabelFrame(outer, text="Monitoring", padding=10)
-        monitor.grid(row=3, column=0, sticky="ew", pady=(10, 0))
-        for column in range(4):
+        content = ttk.Frame(outer)
+        content.grid(row=3, column=0, sticky="ew", pady=(10, 0))
+        content.columnconfigure(0, weight=1)
+        content.columnconfigure(1, weight=2)
+
+        monitor = ttk.LabelFrame(content, text="Monitoring", padding=10)
+        monitor.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
+        for column in range(3):
             monitor.columnconfigure(column, weight=1)
         self.activity_var = tk.StringVar(value="—")
         self.angle_var = tk.StringVar(value="—")
         self.posture_var = tk.StringVar(value="—")
-        self.steps_var = tk.StringVar(value="—")
+        self.steps_var = tk.StringVar(value="0 / 10,000")
+        self.stepsh_var = tk.StringVar(value="0 / 10,000")
         self._value(monitor, 0, 0, "Activity", self.activity_var)
         self._value(monitor, 0, 1, "Angle", self.angle_var)
         self._value(monitor, 0, 2, "Posture", self.posture_var)
-        self._value(monitor, 0, 3, "Steps", self.steps_var)
 
         threshold_row = ttk.Frame(monitor)
-        threshold_row.grid(row=1, column=0, columnspan=4, sticky="ew", pady=(10, 0))
+        threshold_row.grid(row=1, column=0, columnspan=3, sticky="ew", pady=(10, 0))
         ttk.Label(threshold_row, text="Local display thresholds:").pack(side="left")
         self.forward_var = tk.StringVar(value="85")
         self.back_var = tk.StringVar(value="95")
@@ -167,7 +176,7 @@ class LumoLiftApp:
         )
 
         monitor_buttons = ttk.Frame(monitor)
-        monitor_buttons.grid(row=2, column=0, columnspan=4, sticky="w", pady=(10, 0))
+        monitor_buttons.grid(row=2, column=0, columnspan=3, sticky="w", pady=(10, 0))
         self.monitor_button = ttk.Button(
             monitor_buttons, text="Start monitoring", command=self._start_monitoring
         )
@@ -179,10 +188,39 @@ class LumoLiftApp:
             side="left", padx=(6, 0)
         )
 
+        steps = ttk.LabelFrame(content, text="Steps", padding=10)
+        steps.grid(row=0, column=1, sticky="nsew")
+        steps.columnconfigure(0, weight=1)
+        ttk.Label(steps, text="Daily STEPS").grid(row=0, column=0, sticky="w")
+        self.steps_progress = ttk.Progressbar(steps, maximum=100, length=250)
+        self.steps_progress.grid(row=1, column=0, sticky="ew", pady=(3, 0))
+        ttk.Label(steps, textvariable=self.steps_var).grid(row=2, column=0, sticky="e")
+        ttk.Label(steps, text="STEPSH baseline").grid(
+            row=3, column=0, sticky="w", pady=(10, 0)
+        )
+        self.stepsh_progress = ttk.Progressbar(steps, maximum=100, length=250)
+        self.stepsh_progress.grid(row=4, column=0, sticky="ew", pady=(3, 0))
+        ttk.Label(steps, textvariable=self.stepsh_var).grid(row=5, column=0, sticky="e")
+
+        ttk.Separator(steps).grid(row=6, column=0, sticky="ew", pady=10)
+        ttk.Label(steps, text="Steps goal (local gauge)").grid(row=7, column=0, sticky="w")
+        self.steps_goal_var = tk.StringVar(value=str(self.steps_goal))
+        goal_row = ttk.Frame(steps)
+        goal_row.grid(row=8, column=0, sticky="w", pady=(4, 0))
+        ttk.Entry(goal_row, textvariable=self.steps_goal_var, width=9).pack(side="left")
+        ttk.Button(goal_row, text="Apply goal", command=self._apply_steps_goal).pack(
+            side="left", padx=(6, 0)
+        )
+        ttk.Label(
+            steps,
+            text="Goal is local only; no recovered BLE command writes it to the sensor.",
+            wraplength=280,
+        ).grid(row=9, column=0, sticky="w", pady=(8, 0))
+
         log_frame = ttk.LabelFrame(outer, text="Events", padding=8)
         log_frame.grid(row=4, column=0, sticky="nsew", pady=(10, 0))
         outer.rowconfigure(4, weight=1)
-        self.log = tk.Text(log_frame, height=8, wrap="word", state="disabled")
+        self.log = tk.Text(log_frame, height=7, wrap="word", state="disabled")
         self.log.pack(fill="both", expand=True)
 
     @staticmethod
@@ -217,11 +255,13 @@ class LumoLiftApp:
         self._run(self.client.connect(), self._connected, "Scanning and connecting")
 
     def _connected(self, snapshot: DeviceSnapshot) -> None:
-        self.status_var.set("Connected")
+        self.status_var.set("Connected · refreshed · monitoring off")
         self.connect_button.configure(state="disabled")
         self.disconnect_button.configure(state="normal")
         self._show_snapshot(snapshot)
-        self._append_log("Connected; upload disabled, plugin and active communication enabled.")
+        self._append_log(
+            "Connected and refreshed; monitoring is off until Start monitoring is selected."
+        )
 
     def _disconnect(self) -> None:
         self._run(self.client.disconnect(), self._disconnected, "Disconnecting")
@@ -332,6 +372,25 @@ class LumoLiftApp:
         except ValueError as error:
             messagebox.showerror("Local thresholds", str(error))
 
+    def _apply_steps_goal(self) -> None:
+        try:
+            self.steps_goal = validate_steps_goal(int(self.steps_goal_var.get()))
+            self.steps_goal_var.set(str(self.steps_goal))
+            self._update_steps_gauges()
+            self._append_log(
+                f"Local steps goal set to {self.steps_goal:,}; sensor unchanged."
+            )
+        except (TypeError, ValueError) as error:
+            messagebox.showerror("Steps goal", str(error))
+
+    def _update_steps_gauges(self) -> None:
+        self.steps_var.set(f"{self.steps_daily:,} / {self.steps_goal:,}")
+        self.stepsh_var.set(f"{self.steps_hour_baseline:,} / {self.steps_goal:,}")
+        self.steps_progress.configure(value=progress_percent(self.steps_daily, self.steps_goal))
+        self.stepsh_progress.configure(
+            value=progress_percent(self.steps_hour_baseline, self.steps_goal)
+        )
+
     def _handle_event(self, event: LumoEvent) -> None:
         values = event.values
         if event.kind == "REC":
@@ -344,8 +403,18 @@ class LumoLiftApp:
             self.activity_var.set(activity)
             self.angle_var.set("—" if angle is None else f"{angle:.1f}°")
             self.posture_var.set(classify_posture(activity, angle, self.thresholds))
-        elif event.kind in ("STEPS", "STEPSH"):
-            self.steps_var.set(str(values.get("val", "—")))
+        elif event.kind == "STEPS":
+            try:
+                self.steps_daily = int(values.get("val", 0))
+                self._update_steps_gauges()
+            except (TypeError, ValueError):
+                self._append_log(f"Invalid STEPS value: {values.get('val')!r}")
+        elif event.kind == "STEPSH":
+            try:
+                self.steps_hour_baseline = int(values.get("val", 0))
+                self._update_steps_gauges()
+            except (TypeError, ValueError):
+                self._append_log(f"Invalid STEPSH value: {values.get('val')!r}")
         self._append_log(f"{event.kind}: {values}")
 
     def _append_log(self, message: str) -> None:

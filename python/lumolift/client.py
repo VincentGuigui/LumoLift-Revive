@@ -14,6 +14,7 @@ from .ble_transport import LumoBulkTransport
 from .protocol import (
     BatteryStateV2,
     DeviceVersion,
+    PacketStreamDecoder,
     ProtocolError,
     decode_battery_property_v2,
     decode_json_payload,
@@ -79,6 +80,7 @@ class LumoLiftClient:
         self._operation_lock = asyncio.Lock()
         self._monitor_task: asyncio.Task | None = None
         self._event_handlers: list[Callable[[LumoEvent], None]] = []
+        self._packet_stream = PacketStreamDecoder()
 
     @property
     def is_connected(self) -> bool:
@@ -116,6 +118,7 @@ class LumoLiftClient:
         return sorted(devices, key=lambda candidate: candidate.rssi, reverse=True)
 
     async def connect(self, device: DiscoveredLumo | None = None) -> DeviceSnapshot:
+        await self.stop_monitoring()
         if self.is_connected:
             return await self.refresh()
         if device is None:
@@ -132,6 +135,7 @@ class LumoLiftClient:
             self._client = client
             self._transport = transport
             self._device = device
+            self._packet_stream.clear()
             self._original_communication = await self.get_communication_flags()
             await self._set_communication_flags(0x06)
             active_flags = await self.get_communication_flags()
@@ -139,7 +143,11 @@ class LumoLiftClient:
                 raise RuntimeError(
                     f"Unable to activate Lumo session; flags are 0x{active_flags:02x}"
                 )
-            return await self.refresh()
+            snapshot = await self.refresh()
+            # One one-shot update populates live counters without enabling the
+            # recurring monitoring task.
+            await self.request_live_data()
+            return snapshot
         except Exception:
             try:
                 if self._original_communication is not None and client.is_connected:
@@ -156,6 +164,7 @@ class LumoLiftClient:
             self._transport = None
             self._device = None
             self._original_communication = None
+            self._packet_stream.clear()
             raise
 
     async def disconnect(self) -> None:
@@ -178,6 +187,7 @@ class LumoLiftClient:
             self._transport = None
             self._device = None
             self._original_communication = None
+            self._packet_stream.clear()
 
     def _require_transport(self) -> LumoBulkTransport:
         if not self.is_connected or self._transport is None:
@@ -349,20 +359,20 @@ class LumoLiftClient:
 
     def _handle_packet(self, packet: bytes) -> None:
         try:
-            packet_type, payload = decode_packet(packet)
-            if packet_type == 0x8000:
-                message = decode_json_payload(payload)
-                kind = str(message.get("type", "json"))
-                self._emit_event(LumoEvent(packet_type, kind, message, packet.hex()))
-            else:
-                self._emit_event(
-                    LumoEvent(
-                        packet_type,
-                        f"packet_{packet_type}",
-                        {"payload_hex": payload.hex()},
-                        packet.hex(),
+            for packet_type, payload, raw in self._packet_stream.feed(packet):
+                if packet_type == 0x8000:
+                    message = decode_json_payload(payload)
+                    kind = str(message.get("type", "json"))
+                    self._emit_event(LumoEvent(packet_type, kind, message, raw.hex()))
+                else:
+                    self._emit_event(
+                        LumoEvent(
+                            packet_type,
+                            f"packet_{packet_type}",
+                            {"payload_hex": payload.hex()},
+                            raw.hex(),
+                        )
                     )
-                )
         except Exception as error:
             self._emit_event(
                 LumoEvent(-1, "decode_error", {"error": str(error)}, packet.hex())

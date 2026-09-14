@@ -52,6 +52,8 @@ project documentation set.
 - A minimalist Python/Tkinter configuration and monitoring app is available via
   `run_lumolift.ps1`. Its BLE client, transport, codecs, and posture classifier
   are reusable without the UI; see `APP.md`.
+- The app displays daily `STEPS` and `STEPSH` gauges. The steps goal is a local
+  gauge target only: APK analysis found no device-side goal command.
 - Existing open-source posture-sensor projects may provide investigation
   methods or interface architecture, but do not demonstrate compatibility with
   this sensor.

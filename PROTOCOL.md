@@ -210,6 +210,36 @@ final communication state: 00
 This satisfies independent-control Gate G3. It does not yet prove that coaching
 vibrations occur autonomously after disconnection.
 
+## Steps and goal boundary
+
+**Inferred from APK:** the sensor reports daily steps with JSON type `STEPS` and
+an hour-boundary counter with type `STEPSH`. The original app requests live data
+with `GET_LIVE`, stores the daily value, and uses a progress bar against a local
+goal. `STEPSH` is used to derive current-hour activity (`STEPS - STEPSH`); it is
+not itself a device-configurable goal.
+
+The original goal screen accepts a minimum of 100 steps (default 10,000) and
+saves `STEP_GOAL` to app preferences. `LKGoalsManager` stores/synchronizes goals
+through the cloud goals database. No BLE command or packet builder sets a steps
+goal on the physical sensor.
+
+The Python application consequently exposes two live gauges and a local goal
+target, but deliberately does not send a fabricated “set steps goal” command to
+the device.
+
+## Multi-frame event handling
+
+**Observed during live use:** a bulk-transfer response can contain multiple
+concatenated application frames. Treating its full payload as one frame produced
+the reported error `packet length is 124 bytes; expected 27` after valid `STEPS`
+events.
+
+The reusable `PacketStreamDecoder` now buffers and splits each bulk payload at
+the `ZO` frame boundary, validates every frame independently, and emits all
+contained events. Connection performs one `GET_LIVE` request after its initial
+configuration refresh, but recurring monitoring remains off until explicitly
+started in the UI.
+
 ## Ownership and cloud boundary
 
 **Inferred from code:** the original high-level onboarding flow queries
@@ -250,6 +280,8 @@ Additional read-only observations:
   operations.
 - `.tools/ble_verify_coach_persistence.py` performs the reversible Gate G3
   disconnect/reconnect experiment and restores the original state.
+- The app's daily and `STEPSH` gauges consume `STEPS`/`STEPSH` JSON events;
+  the adjustable goal is local because the APK has no device-goal endpoint.
 
 ## Hardware write allowlist
 

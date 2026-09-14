@@ -23,6 +23,52 @@ class ProtocolError(ValueError):
     """Raised when encoded or received protocol data is invalid."""
 
 
+class PacketStreamDecoder:
+    """Split a byte stream that may contain multiple Lumo application frames."""
+
+    def __init__(self) -> None:
+        self._buffer = bytearray()
+
+    def clear(self) -> None:
+        self._buffer.clear()
+
+    def feed(self, data: bytes) -> list[tuple[int, bytes, bytes]]:
+        """Return every complete valid frame received so far.
+
+        Bulk-transfer payloads can concatenate multiple application frames, so
+        callers must not assume a transport response contains exactly one frame.
+        """
+
+        self._buffer.extend(data)
+        frames = []
+        while True:
+            start = self._buffer.find(MAGIC)
+            if start < 0:
+                # Preserve a possible first byte of the two-byte magic value.
+                keep = self._buffer[-1:] if self._buffer.endswith(MAGIC[:1]) else b""
+                self._buffer.clear()
+                self._buffer.extend(keep)
+                return frames
+            if start:
+                del self._buffer[:start]
+            if len(self._buffer) < 6:
+                return frames
+
+            payload_length = struct.unpack(">H", self._buffer[4:6])[0]
+            if payload_length > MAX_PACKET_PAYLOAD:
+                # Discard the leading byte and continue searching for framing.
+                del self._buffer[0]
+                continue
+            total_length = 8 + payload_length
+            if len(self._buffer) < total_length:
+                return frames
+
+            raw = bytes(self._buffer[:total_length])
+            del self._buffer[:total_length]
+            packet_type, payload = decode_packet(raw)
+            frames.append((packet_type, payload, raw))
+
+
 def crc16_ccitt(data: bytes) -> int:
     """Return the APK's CRC-16/CCITT-FALSE value for *data*."""
 

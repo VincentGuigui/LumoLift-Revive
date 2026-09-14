@@ -24,13 +24,15 @@ offline-first and does not use the discontinued Lumo account or cloud service.
 
 | Area | Capability | Evidence/status |
 | --- | --- | --- |
-| Connection | Discover `Lumo*`, connect, initialize plugin/active communication, restore original flags on disconnect | Hardware-verified |
+| Connection | Discover `Lumo*`, connect, initialize plugin/active communication, perform one refresh/`GET_LIVE` request, restore original flags on disconnect | Hardware-verified transport; app-level smoke test pending device advertising |
 | Device | Manufacturer, firmware revision/capabilities, native voltage/charge/temperature | Hardware-verified |
 | Coaching | Read, enable, disable, and verify by read-back | Hardware-verified, including reconnect persistence |
 | Feedback delay | Read current delay; set one of 3, 5, 10, 15, 30, 45, 60, or 120 seconds with read-back | Read verified; write recovered from APK, pending live app verification |
 | Feedback session | Read total/remaining/good-posture time; start or stop with confirmation | Read verified; start/stop recovered from APK, not yet live-tested |
 | Vibration | Request the APK's `BUZZ` test | Recovered from APK, not yet physically confirmed |
-| Monitoring | Poll `GET_LIVE`, display JSON events, activity, angle, steps, and posture | Transport implemented; live event availability depends on sensor mode/wear state |
+| Monitoring | Poll `GET_LIVE`, display JSON events, activity, angle, steps, and posture | Off by default; connection makes one one-shot live request, then polling starts only when selected |
+| Step gauges | Progress bars for daily `STEPS` and `STEPSH` (hour-boundary baseline) | UI implemented; updated from live events |
+| Steps goal | Validate and Apply a local goal (minimum 100, default 10,000) used by both gauges | Local-only; no device BLE goal command exists in the APK |
 | Local thresholds | Classify forward/good/back with adjustable display thresholds | UI-independent local calculation; does not modify sensor firmware |
 
 The APK's default display thresholds are forward below 85°, good from 85°
@@ -38,6 +40,12 @@ through 95°, and back above 95°. These are used only to interpret live `REC`
 events. The device commands `SBB_GET` and `SBF_GET` time out on firmware revision
 102424, and no supported setters were found, so the app does not invent device
 angle/tolerance controls.
+
+The original APK's steps goal screen validates a minimum of 100 steps and saves
+the selected value as `STEP_GOAL` in app preferences. Goals are represented in
+the cloud goals database; no `sendCommand`/BLE packet applies a steps goal to
+the sensor. The Python app therefore labels its Apply action “local gauge” and
+does not claim to write the goal to the device.
 
 Target-posture calibration remains a physical-device operation. The APK handles
 `CALIB_START` as an incoming event and does not establish it as a safe outgoing
@@ -53,6 +61,7 @@ The UI contains no BLE framing or device policy:
 | `python/lumolift/ble_transport.py` | Serialized GATT bulk-transfer request/response transport and unsolicited events |
 | `python/lumolift/client.py` | UI-independent discovery, lifecycle, configuration, read-back, and monitoring API |
 | `python/lumolift/monitoring.py` | Pure posture classification with replaceable local thresholds |
+| `python/lumolift/steps.py` | Pure step-goal validation and progress calculations |
 | `python/lumolift/gui.py` | Minimal Tkinter presentation and background-event-loop bridge |
 | `python/lumolift/__main__.py` | `python -m lumolift` entry point |
 

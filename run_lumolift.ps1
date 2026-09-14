@@ -10,9 +10,12 @@ if ($pythonCommand) {
     exit $LASTEXITCODE
 }
 
-$bundledPython = 'C:\Users\vince\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe'
-if (Test-Path -LiteralPath $bundledPython) {
-    & $bundledPython -m lumolift
+$p = &{python -V} 2>&1
+# check if an ErrorRecord was returned
+$version = if($p -is [System.Management.Automation.ErrorRecord])
+{
+	cd python
+	& python -m lumolift
     exit $LASTEXITCODE
 }
 
