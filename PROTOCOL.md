@@ -250,7 +250,7 @@ app/cloud concepts, not recovered device configuration.
 | Test vibration | `BUZZ`, `BUZZSTR` | Expose only as a user-requested physical test |
 | Target-posture calibration | Incoming `CALIB_START`; onboarding instructions use physical interaction | No outgoing calibration command exposed |
 | Angle/tolerance values | `REC` carries angle; `SBB_GET`/`SBF_GET` time out on this firmware | Local display classifier only; no guessed setters |
-| User height/weight/gender/age | Sent only during ownership onboarding | Not exposed; no safe local read-back or offline ownership path |
+| User height/weight/gender/age | Sent during ownership onboarding | Editable with explicit confirmation; no confirmed local read-back |
 | Firmware/update/reset/ownership/minting | APK contains flows | Explicitly excluded from the replacement |
 | Steps/posture goals and units | Android preferences and cloud/database paths | Local UI preferences only, not sensor configuration |
 
@@ -322,6 +322,9 @@ Only these operations are currently allowlisted:
 | `ALERTLEN:<seconds>` | User-initiated only; value must be one of `3, 5, 10, 15, 30, 45, 60, 120` and must be reconciled with `AL_LEN_GET`. APK-supported; live write verification pending. |
 | `BSE_START` / `BSE_END` | User-initiated only and confirmation required; reconcile with `BSE_GET`. APK-supported; live start/stop verification pending. |
 | `BUZZ` | User-initiated test only. APK-supported; physical confirmation pending. |
+| No-argument `USER_*` probe | Explicit Profile-tab confirmation only; sends no argument and waits for a local reply. |
+| `USER_HEIGHT_CM`, `USER_WEIGHT_KG`, `USER_GENDER`, `USER_AGE` | Explicit Profile-tab confirmation only; values are range-validated and sent directly to the sensor. No confirmed read-back exists. |
+| `OWN` | Explicit Profile-tab confirmation only; requires owner and password and verifies with `OWNER_GET`. |
 
 Ownership, minting, RTC changes, tolerance setters, firmware operations, resets,
 and arbitrary console commands remain disallowed.

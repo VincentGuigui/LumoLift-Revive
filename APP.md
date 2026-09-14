@@ -33,6 +33,7 @@ offline-first and does not use the discontinued Lumo account or cloud service.
 | Monitoring | Poll `GET_LIVE`, display JSON events, activity, angle, steps, and posture | Off by default; connection makes one one-shot live request, then polling starts only when selected |
 | Step gauges | Progress bars for daily `STEPS` and `STEPSH` (hour-boundary baseline) | UI implemented; updated from live events |
 | Steps goal | Validate and Apply a local goal (minimum 100, default 10,000) used by both gauges | Local-only; no device BLE goal command exists in the APK |
+| Device profile | Read hardware/software IDs and owner; edit owner, height, weight, gender, and age | Direct device actions with confirmation; user-field read-back remains unconfirmed |
 | Local thresholds | Classify forward/good/back with adjustable display thresholds | UI-independent local calculation; does not modify sensor firmware |
 
 The APK's default display thresholds are forward below 85°, good from 85°
@@ -71,6 +72,12 @@ The UI contains no BLE framing or device policy:
 
 Another UI, command-line client, Android bridge, or automated test harness can
 reuse `LumoLiftClient` without importing Tkinter.
+
+The **Profile & investigation** tab shows the APK's recovered formats for
+height, weight, gender, and age. Its probe button sends those command names with
+no argument, one at a time, after confirmation. The editable fields send direct
+sensor commands only. Owner application requires a password because the
+recovered command is `OWN(owner, password)` and is verified using `OWNER_GET`.
 
 ## Reusable API example
 

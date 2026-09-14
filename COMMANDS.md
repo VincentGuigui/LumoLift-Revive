@@ -90,10 +90,10 @@ the bulk-control/data characteristics described in `PROTOCOL.md`.
 | `OWN` | Host → sensor | Send account credentials to claim device. | Blocked |
 | `OWN_OK` | Sensor → host | Ownership accepted. | Event |
 | `OWN_NOTOK` | Sensor → host | Ownership rejected. | Event |
-| `USER_HEIGHT_CM` | Host → sensor | Set user height during ownership setup. | Blocked |
-| `USER_WEIGHT_KG` | Host → sensor | Set user weight during ownership setup. | Blocked |
-| `USER_GENDER` | Host → sensor | Set user gender during ownership setup. | Blocked |
-| `USER_AGE` | Host → sensor | Set user age during ownership setup. | Blocked |
+| `USER_HEIGHT_CM` | Host → sensor | Set user height during ownership setup. | Editable with confirmation; no-argument read probe available; no confirmed read-back |
+| `USER_WEIGHT_KG` | Host → sensor | Set user weight during ownership setup. | Editable with confirmation; no-argument read probe available; no confirmed read-back |
+| `USER_GENDER` | Host → sensor | Set user gender during ownership setup. | Editable with confirmation; no-argument read probe available; no confirmed read-back |
+| `USER_AGE` | Host → sensor | Set user age during ownership setup. | Editable with confirmation; no-argument read probe available; no confirmed read-back |
 
 ## Direct application-packet operations
 

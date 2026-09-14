@@ -64,8 +64,10 @@ class LumoLiftApp:
         self.root.protocol("WM_DELETE_WINDOW", self._close)
 
     def _build(self) -> None:
-        outer = ttk.Frame(self.root, padding=14)
-        outer.pack(fill="both", expand=True)
+        self.notebook = ttk.Notebook(self.root)
+        self.notebook.pack(fill="both", expand=True)
+        outer = ttk.Frame(self.notebook, padding=14)
+        self.notebook.add(outer, text="Dashboard")
         outer.columnconfigure(0, weight=1)
 
         connection = ttk.LabelFrame(outer, text="Connection", padding=10)
@@ -223,6 +225,127 @@ class LumoLiftApp:
         self.log = tk.Text(log_frame, height=7, wrap="word", state="disabled")
         self.log.pack(fill="both", expand=True)
 
+        profile_tab = ttk.Frame(self.notebook, padding=14)
+        self.notebook.add(profile_tab, text="Profile & investigation")
+        self._build_profile_tab(profile_tab)
+
+    def _build_profile_tab(self, parent: ttk.Frame) -> None:
+        parent.columnconfigure(0, weight=1)
+        ttk.Label(
+            parent,
+            text="Direct device profile session. Read, inspect, and edit supported fields.",
+            wraplength=850,
+        ).grid(row=0, column=0, sticky="w")
+
+        identity = ttk.LabelFrame(parent, text="Readable device identity", padding=10)
+        identity.grid(row=1, column=0, sticky="ew", pady=(12, 0))
+        identity.columnconfigure(1, weight=1)
+        self.hardware_id_var = tk.StringVar(value="—")
+        self.software_id_var = tk.StringVar(value="—")
+        ttk.Label(identity, text="Hardware ID").grid(row=0, column=0, sticky="w")
+        ttk.Label(identity, textvariable=self.hardware_id_var).grid(
+            row=0, column=1, sticky="w", padx=(12, 0)
+        )
+        ttk.Label(identity, text="Software ID").grid(row=1, column=0, sticky="w", pady=(6, 0))
+        ttk.Label(identity, textvariable=self.software_id_var).grid(
+            row=1, column=1, sticky="w", padx=(12, 0), pady=(6, 0)
+        )
+        ttk.Button(identity, text="Read device IDs", command=self._read_identity).grid(
+            row=0, column=2, rowspan=2, padx=(12, 0)
+        )
+
+        editor = ttk.LabelFrame(parent, text="Editable device profile", padding=10)
+        editor.grid(row=2, column=0, sticky="ew", pady=(12, 0))
+        editor.columnconfigure(1, weight=1)
+        editor.columnconfigure(3, weight=1)
+        self.owner_var = tk.StringVar()
+        self.owner_password_var = tk.StringVar()
+        self.profile_height_var = tk.StringVar(value="175")
+        self.profile_weight_var = tk.StringVar(value="70")
+        self.profile_gender_var = tk.StringVar(value="m")
+        self.profile_age_var = tk.StringVar(value="30")
+        ttk.Label(editor, text="Owner").grid(row=0, column=0, sticky="w")
+        ttk.Entry(editor, textvariable=self.owner_var, width=30).grid(
+            row=0, column=1, sticky="ew", padx=(8, 14)
+        )
+        ttk.Button(editor, text="Read owner", command=self._read_owner).grid(
+            row=0, column=2, sticky="w"
+        )
+        ttk.Label(editor, text="Owner password").grid(row=0, column=3, sticky="w", padx=(14, 0))
+        ttk.Entry(editor, textvariable=self.owner_password_var, show="•", width=22).grid(
+            row=0, column=4, sticky="ew", padx=(8, 0)
+        )
+        ttk.Button(editor, text="Apply owner", command=self._apply_owner).grid(
+            row=0, column=5, sticky="w", padx=(8, 0)
+        )
+
+        ttk.Label(editor, text="Height (cm)").grid(row=1, column=0, sticky="w", pady=(10, 0))
+        ttk.Entry(editor, textvariable=self.profile_height_var, width=10).grid(
+            row=1, column=1, sticky="w", padx=(8, 14), pady=(10, 0)
+        )
+        ttk.Label(editor, text="Weight (kg)").grid(row=1, column=2, sticky="w", pady=(10, 0))
+        ttk.Entry(editor, textvariable=self.profile_weight_var, width=10).grid(
+            row=1, column=3, sticky="w", padx=(8, 14), pady=(10, 0)
+        )
+        ttk.Label(editor, text="Gender").grid(row=1, column=4, sticky="w", pady=(10, 0))
+        ttk.Combobox(
+            editor,
+            textvariable=self.profile_gender_var,
+            values=("m", "f"),
+            state="readonly",
+            width=5,
+        ).grid(row=1, column=5, sticky="w", padx=(8, 0), pady=(10, 0))
+        ttk.Label(editor, text="Age").grid(row=2, column=0, sticky="w", pady=(10, 0))
+        ttk.Entry(editor, textvariable=self.profile_age_var, width=10).grid(
+            row=2, column=1, sticky="w", padx=(8, 14), pady=(10, 0)
+        )
+        ttk.Button(editor, text="Apply user profile", command=self._apply_user_profile).grid(
+            row=2, column=2, columnspan=2, sticky="w", pady=(10, 0)
+        )
+
+        profile = ttk.LabelFrame(parent, text="User-profile format investigation", padding=10)
+        profile.grid(row=3, column=0, sticky="nsew", pady=(12, 0))
+        parent.rowconfigure(3, weight=1)
+        ttk.Label(
+            profile,
+            text=(
+                "The APK sends these fields only during ownership setup. The table shows "
+                "the recovered write format; Probe sends each command with no argument and "
+                "waits for a local device reply."
+            ),
+            wraplength=850,
+        ).pack(anchor="w")
+
+        columns = ("field", "apk_format", "read_result")
+        self.profile_tree = ttk.Treeview(profile, columns=columns, show="headings", height=5)
+        self.profile_tree.heading("field", text="Command")
+        self.profile_tree.heading("apk_format", text="APK write format")
+        self.profile_tree.heading("read_result", text="No-argument read probe")
+        self.profile_tree.column("field", width=175, stretch=False)
+        self.profile_tree.column("apk_format", width=270, stretch=True)
+        self.profile_tree.column("read_result", width=330, stretch=True)
+        formats = {
+            "USER_HEIGHT_CM": "Decimal centimetres, e.g. 175.0",
+            "USER_WEIGHT_KG": "Decimal kilograms, e.g. 70.0",
+            "USER_GENDER": "Single lowercase m or f",
+            "USER_AGE": "Decimal integer years",
+        }
+        for command, value_format in formats.items():
+            self.profile_tree.insert(
+                "", "end", iid=command, values=(command, value_format, "Not probed")
+            )
+        self.profile_tree.pack(fill="both", expand=True, pady=(10, 0))
+
+        probe_row = ttk.Frame(profile)
+        probe_row.pack(fill="x", pady=(10, 0))
+        ttk.Button(
+            probe_row, text="Probe local reads", command=self._probe_profile_reads
+        ).pack(side="left")
+        ttk.Label(
+            probe_row,
+            text="Probe sends no arguments and does not write profile values.",
+        ).pack(side="left", padx=(10, 0))
+
     @staticmethod
     def _value(parent, row: int, column: int, title: str, variable: tk.StringVar) -> None:
         frame = ttk.Frame(parent)
@@ -271,6 +394,102 @@ class LumoLiftApp:
         self.connect_button.configure(state="normal")
         self.disconnect_button.configure(state="disabled")
         self._append_log("Disconnected; original communication flags restored.")
+
+    def _read_identity(self) -> None:
+        async def read() -> tuple[str, str]:
+            hardware_id = await self.client.get_hardware_id()
+            software_id = await self.client.get_software_id()
+            return hardware_id, software_id
+
+        self._run(read(), self._identity_read, "Reading device IDs")
+
+    def _identity_read(self, identity: tuple[str, str]) -> None:
+        self.hardware_id_var.set(identity[0])
+        self.software_id_var.set(identity[1])
+        self.status_var.set("Connected")
+        self._append_log("Read local device identity properties.")
+
+    def _read_owner(self) -> None:
+        self._run(self.client.get_owner(), self._owner_read, "Reading owner")
+
+    def _owner_read(self, owner: str) -> None:
+        self.owner_var.set(owner)
+        self.status_var.set("Connected")
+        self._append_log(f"Owner read: {owner!r}")
+
+    def _apply_owner(self) -> None:
+        owner = self.owner_var.get().strip()
+        password = self.owner_password_var.get()
+        if not messagebox.askyesno(
+            "Apply owner",
+            (
+                "Apply this owner directly to the sensor and verify it with OWNER_GET?\n\n"
+                "The owner password is required by the recovered OWN command."
+            ),
+        ):
+            return
+        self._run(
+            self.client.set_owner(owner, password),
+            self._owner_applied,
+            "Applying owner",
+        )
+
+    def _owner_applied(self, owner: str) -> None:
+        self.owner_var.set(owner)
+        self.owner_password_var.set("")
+        self.status_var.set("Connected")
+        self._append_log(f"Owner applied and read back: {owner!r}")
+
+    def _apply_user_profile(self) -> None:
+        try:
+            height = float(self.profile_height_var.get())
+            weight = float(self.profile_weight_var.get())
+            gender = self.profile_gender_var.get()
+            age = int(self.profile_age_var.get())
+        except ValueError:
+            messagebox.showerror("User profile", "Height, weight, and age must be numeric.")
+            return
+        if not messagebox.askyesno(
+            "Apply user profile",
+            (
+                "Apply height, weight, gender, and age directly to the sensor?\n\n"
+                "The recovered protocol does not provide a confirmed read-back for these fields."
+            ),
+        ):
+            return
+        self._run(
+            self.client.set_user_profile(
+                height_cm=height, weight_kg=weight, gender=gender, age=age
+            ),
+            lambda _result: self._setting_done("User profile values sent to sensor."),
+            "Applying user profile",
+        )
+
+    def _probe_profile_reads(self) -> None:
+        if not messagebox.askyesno(
+            "Probe profile reads",
+            (
+                "The APK documents these as ownership-time setters, not readers. "
+                "Send each command with no argument and wait for a local reply?\n\n"
+                "No profile write will be performed."
+            ),
+        ):
+            return
+        self._run(
+            self.client.probe_user_profile_reads(),
+            self._profile_probe_complete,
+            "Probing profile reads",
+        )
+
+    def _profile_probe_complete(self, probes) -> None:
+        for probe in probes:
+            if probe.response is not None:
+                result = str(probe.response)
+            else:
+                result = probe.error or "No response"
+            self.profile_tree.set(probe.command, "read_result", result)
+            self._append_log(f"{probe.command} read probe: {result}")
+        self.status_var.set("Connected")
 
     def _refresh(self) -> None:
         self._run(self.client.refresh(), self._refreshed, "Refreshing")

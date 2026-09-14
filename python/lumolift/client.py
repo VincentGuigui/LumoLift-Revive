@@ -28,6 +28,12 @@ from .protocol import (
 LUMO_PRIMARY_SERVICE = "af120101-31d4-48e8-a1f8-5c09c020ae42"
 MANUFACTURER_NAME_UUID = "00002a29-0000-1000-8000-00805f9b34fb"
 VALID_FEEDBACK_DELAYS = (3, 5, 10, 15, 30, 45, 60, 120)
+USER_PROFILE_COMMANDS = (
+    "USER_HEIGHT_CM",
+    "USER_WEIGHT_KG",
+    "USER_GENDER",
+    "USER_AGE",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,6 +73,15 @@ class LumoEvent:
     kind: str
     values: dict[str, Any]
     raw_hex: str
+
+
+@dataclass(frozen=True, slots=True)
+class UserProfileProbe:
+    """Result of a no-argument local profile query attempt."""
+
+    command: str
+    response: dict[str, Any] | None
+    error: str | None
 
 
 class LumoLiftClient:
@@ -258,6 +273,81 @@ class LumoLiftClient:
 
     async def get_battery(self) -> BatteryStateV2:
         return decode_battery_property_v2(await self._query_property(23))
+
+    async def get_hardware_id(self) -> str:
+        payload = await self._query_property(5)
+        if len(payload) != 9:
+            raise ProtocolError(f"Unexpected hardware-ID payload: {payload.hex()}")
+        return payload[1:].hex()
+
+    async def get_software_id(self) -> str:
+        payload = await self._query_property(16)
+        if len(payload) != 33:
+            raise ProtocolError(f"Unexpected software-ID payload: {payload.hex()}")
+        return payload[1:].rstrip(b"\x00").decode("ascii", errors="replace")
+
+    async def get_owner(self) -> str:
+        """Read the owner identifier stored by the sensor, if it replies."""
+
+        message = await self._query_json("OWNER_GET")
+        return str(message.get("str", ""))
+
+    async def set_user_profile(
+        self, *, height_cm: float, weight_kg: float, gender: str, age: int
+    ) -> None:
+        """Send the APK's local device-profile setters without cloud access.
+
+        The firmware exposes no confirmed read-back for these fields. Callers
+        must obtain explicit user confirmation before using this method.
+        """
+
+        if not 1.0 <= height_cm <= 300.0:
+            raise ValueError("Height must be between 1 and 300 cm")
+        if not 1.0 <= weight_kg <= 500.0:
+            raise ValueError("Weight must be between 1 and 500 kg")
+        if gender not in ("m", "f"):
+            raise ValueError("Gender must be m or f")
+        if not 0 <= age <= 130:
+            raise ValueError("Age must be between 0 and 130")
+
+        await self._set_json("USER_HEIGHT_CM", f"{height_cm:g}")
+        await self._set_json("USER_WEIGHT_KG", f"{weight_kg:g}")
+        await self._set_json("USER_GENDER", gender)
+        await self._set_json("USER_AGE", str(age))
+
+    async def set_owner(self, owner: str, password: str) -> str:
+        """Set owner using the APK's direct sensor OWN command and read it back."""
+
+        if not owner:
+            raise ValueError("Owner is required")
+        if not password:
+            raise ValueError("Owner password is required")
+        await self._set_json("OWN", owner, password)
+        actual_owner = await self.get_owner()
+        if actual_owner != owner:
+            raise RuntimeError(
+                f"Owner read-back is {actual_owner!r}; expected {owner!r}"
+            )
+        return actual_owner
+
+    async def probe_user_profile_reads(self, timeout: float = 5.0) -> list[UserProfileProbe]:
+        """Attempt documented no-argument profile queries without cloud access.
+
+        The APK only proves these commands as setters during ownership setup.
+        This method sends no arguments, never invokes cloud code, and reports
+        replies/timeouts rather than treating a missing reply as a writable path.
+        """
+
+        results = []
+        for command in USER_PROFILE_COMMANDS:
+            try:
+                response = await self._query_json(command, timeout=timeout)
+                results.append(UserProfileProbe(command, response, None))
+            except TimeoutError:
+                results.append(UserProfileProbe(command, None, "No response"))
+            except Exception as error:
+                results.append(UserProfileProbe(command, None, str(error)))
+        return results
 
     async def get_manufacturer(self) -> str:
         client = self._client
