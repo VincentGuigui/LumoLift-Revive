@@ -22,6 +22,7 @@ operating model have been verified.
 | [README.md](README.md) | Main goal, current state, scope, and documentation index. |
 | [STRATEGY.md](STRATEGY.md) | Detailed research and development strategy. |
 | [PROTOCOL.md](PROTOCOL.md) | Authoritative BLE, packet, command, and evidence record. |
+| [COMMANDS.md](COMMANDS.md) | Complete recovered BLE command, event, packet-type, and property inventory. |
 | [BLE_PROBE.md](BLE_PROBE.md) | How the read-only Windows BLE probe works, how to run it, and its observed output. |
 | [APP.md](APP.md) | Python application setup, features, evidence status, architecture, and reusable API. |
 | [AGENTS.md](AGENTS.md) | Short repository instructions and pointers for coding agents. |
@@ -116,6 +117,7 @@ private. Share only sanitized evidence and independently implemented code.
 README.md       Project goal, scope, and setup context
 STRATEGY.md     Detailed research and development strategy
 PROTOCOL.md     Authoritative device protocol findings and unknowns
+COMMANDS.md     Recovered BLE command and property inventory
 BLE_PROBE.md    Read-only BLE probe usage and observed service inventory
 APP.md          Python app setup, capabilities, and reusable architecture
 AGENTS.md       Agent entry point and safety instructions
