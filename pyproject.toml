@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lumolift-revive"
+version = "0.1.0"
+description = "Offline-first Lumo Lift configuration and monitoring client"
+requires-python = ">=3.10"
+dependencies = ["bleak>=3.0,<4"]
+
+[project.scripts]
+lumolift = "lumolift.gui:main"
+
+[tool.setuptools]
+package-dir = {"" = "python"}
+
+[tool.setuptools.packages.find]
+where = ["python"]

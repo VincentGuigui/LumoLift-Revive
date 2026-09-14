@@ -1,0 +1,42 @@
+# Python caches, environments, and build output
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+build/
+dist/
+*.egg-info/
+
+# Local tooling, downloaded runtimes, and decompiler caches
+.tools/pydeps/
+.tools/jadx-*/
+.tools/jadx-*.zip
+.tools/*-cache/
+.tools/*-config/
+.tools/*-tmp/
+
+# Private APKs and generated decompilation
+Lumo-Bodytech/*.apk
+Lumo-Bodytech/decompiled/
+
+# Private device captures and logs
+evidence/raw/
+*.btsnoop_hci.log
+*.pcap
+*.pcapng
+*.log
+.env
+.env.*
+
+# Operating-system/editor noise
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
