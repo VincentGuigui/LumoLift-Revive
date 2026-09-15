@@ -14,7 +14,6 @@ $p = &{python -V} 2>&1
 # check if an ErrorRecord was returned
 $version = if($p -is [System.Management.Automation.ErrorRecord])
 {
-	cd python
 	& python -m lumolift
     exit $LASTEXITCODE
 }
