@@ -47,5 +47,8 @@ android/.toolchain/
 android/.gradle/
 android/local.properties
 android/**/build/
+.tools/android/**/.gradle/
+.tools/android/**/local.properties
+.tools/android/**/build/
 *.apk
 *.aab
