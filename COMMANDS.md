@@ -138,3 +138,31 @@ These use the `ZO` binary frame and are separate from JSON command names.
 Other property IDs in the APK's switch are explicitly unrecognized. Firmware,
 ownership, reset, arbitrary console, and unexplained write operations are not
 part of the replacement application's allowlist.
+
+## Developer console (APK-only, not reused)
+
+`ConsoleActivity` (`com.lumobodytech.lumolift.screen.settings.navigationDrawerMenu`)
+is a hidden screen in the original APK with a free-text field that calls
+`sensor.sendCommand(cmd, args)` with whatever the user types, unfiltered. This
+confirms the sensor's own transport does not validate or allowlist command
+names client-side — the firmware is trusted to reject what it doesn't
+understand. It is not evidence of any additional setter (there is no
+predefined list behind it, just raw passthrough), and this project
+deliberately does not reuse this pattern: see the safety rules in
+`AGENTS.md`/`README.md` against sending unidentified state-changing commands.
+
+## Full ownership/setup command sequence (`LKOwnTask.java`)
+
+Recovered by decompiling `Lumo-Bodytech/com-lumobodytech-lumolift.apk` with
+jadx (2026-09-19). This is the exact, ordered set of commands the original app
+sends once, the first time it takes ownership of a sensor; none of it is
+re-sent on every connection and none of it is reused by this project:
+
+1. `REVISION`, `OWNER_GET` (initial handshake)
+2. `CHTOG:0`, `OWN:<email>,<password>` (claim ownership), `OWNER_GET`
+3. `USER_HEIGHT_CM`, `USER_WEIGHT_KG`, `USER_GENDER`, `USER_AGE`
+4. `LOGGING_OFF`, `AL_OFF`, `BPSM:1`, `BSE_SET:32000`, `COACHCALIB:0`
+
+No step in this sequence, nor anywhere else in the decompiled sources,
+references `SBB`/`SBF` with a value — confirming again that the sitting
+tolerance has no setter anywhere in the original app.
