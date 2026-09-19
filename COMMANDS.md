@@ -78,8 +78,8 @@ the bulk-control/data characteristics described in `PROTOCOL.md`.
 | `BUZZSTR` | Host → sensor | Set vibration-strength/mask; app sends `255`. | APK; physical test only |
 | `COACHCALIB` | Host → sensor | Configure coaching calibration; setup uses `0`. | Blocked/unknown lifecycle |
 | `BPSM` | Host → sensor | Configure posture-sensor mode; setup uses `1`. | Blocked/unknown lifecycle |
-| `SBB_GET` | Host ↔ sensor | Query backward sitting tolerance. | APK; timed out on this firmware |
-| `SBF_GET` | Host ↔ sensor | Query forward sitting tolerance. | APK; timed out on this firmware |
+| `SBB_GET` | Host ↔ sensor | Query backward sitting tolerance. | APK; timed out on this firmware, but a re-test on the Android reimplementation with a longer timeout still timed out |
+| `SBF_GET` | Host ↔ sensor | Query forward sitting tolerance. | Verified: replied `val=5` on a re-test on 2026-09; had previously timed out |
 
 ## Ownership and user-data commands
 

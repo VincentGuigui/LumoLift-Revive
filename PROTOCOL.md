@@ -181,8 +181,27 @@ SBF_GET     timeout
 
 `BSE_GET` confirms that feedback session state and its timer can be monitored.
 `AL_LEN_GET` confirms a 15-second configured alert delay. Backward and forward
-tolerance queries did not reply on firmware revision 102424; their setters are
-unknown and must not be guessed.
+tolerance queries did not reply on firmware revision 102424.
+
+A re-test with the Android reimplementation's standalone probe
+(`.tools/android/ble_probe_config_queries/`) on 2026-09-17 got `SBB_GET
+timeout` again, but `SBF_GET` replied `{"type":"SBF_GET","val":"5"}` — so this
+query does work, at least intermittently or after the sensor's internal state
+changed since the original Python run. `currentSitForwardTolerance` /
+`currentSitBackwardTolerance` in the original APK's `LKSensor.java` (fetched
+by decompiling `Lumo-Bodytech/com-lumobodytech-lumolift.zip` with jadx on
+2026-09-19) are populated exclusively from these two `_GET` replies and used
+only to compute a local good/bad threshold (`90° ∓ tolerance`) for the
+real-time posture judgement — the same read-then-classify-locally approach
+this project's Python and Android reimplementations already use. The
+decompiled `LKSensorMessageType` enum, which lists every command/event this
+protocol version supports, has no `SBB_SET`/`SBF_SET`/`SBB`/`SBF` entry and no
+other code path ever calls `sendCommand` with a value for these two types:
+the original app itself has no way to write this tolerance over BLE, so no
+guessed setter name should be trusted or relied upon. This is a stronger,
+source-level confirmation of the "setters are unknown and must not be
+guessed" conclusion already in this file — not just an absence of evidence
+from static string scanning.
 
 ### Verified coaching exchange
 
@@ -249,7 +268,7 @@ app/cloud concepts, not recovered device configuration.
 | Alert delay | `AL_LEN_GET`, `ALERTLEN`, `AL_LEN` | Read current delay; constrained user-settable values |
 | Test vibration | `BUZZ`, `BUZZSTR` | Expose only as a user-requested physical test |
 | Target-posture calibration | Incoming `CALIB_START`; onboarding instructions use physical interaction | No outgoing calibration command exposed |
-| Angle/tolerance values | `REC` carries angle; `SBB_GET`/`SBF_GET` time out on this firmware | Local display classifier only; no guessed setters |
+| Angle/tolerance values | `REC` carries angle; `SBF_GET` replied `val=5` on 2026-09-17, `SBB_GET` still times out | Local display classifier only; no setter exists in the original app's protocol (confirmed by decompiling its `LKSensorMessageType` enum), so none is guessed |
 | User height/weight/gender/age | Sent during ownership onboarding | Editable with explicit confirmation; no confirmed local read-back |
 | Firmware/update/reset/ownership/minting | APK contains flows | Explicitly excluded from the replacement |
 | Steps/posture goals and units | Android preferences and cloud/database paths | Local UI preferences only, not sensor configuration |
